@@ -1,5 +1,6 @@
 import io
 import json
+import base64
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
@@ -129,7 +130,7 @@ def build_plotly_figure(df, x, y, label_col, include_labels, scale_mode,
         shapes=shapes, annotations=annotations,
         legend=dict(orientation="h", y=1.05),
         margin=dict(l=40, r=40, t=60, b=60),
-        height=720  # taller; not 1:1 so it fills viewer
+        height=720  # taller; not 1:1
     )
 
     df_out = df.copy()
@@ -367,15 +368,11 @@ if page == "Scatter Zone Plotter":
                 height_in=height_in
             )
 
-            # Generate HTML & embed code
-            html_bytes = fig.to_html(full_html=False).encode("utf-8")
-            embed_code = f"""
-<iframe srcdoc='{fig.to_html(full_html=False).replace("'", "&apos;")}' 
-        width="800" height="600" style="border:none;">
-</iframe>
-"""
+            # Generate interactive HTML once (used for download + embed instructions)
+            fig_html = fig.to_html(full_html=False)
+            html_bytes = fig_html.encode("utf-8")
 
-            # Align buttons horizontally
+            # Buttons aligned horizontally
             colA, colB, colC = st.columns(3)
             with colA:
                 st.download_button(
@@ -407,9 +404,18 @@ if page == "Scatter Zone Plotter":
                     key="csv_dl2"
                 )
 
-            # Show embed option
-            st.markdown("### Embed on your website")
-            st.code(embed_code, language="html")
+            # Responsive embed instructions (lightweight, no srcdoc here)
+            st.markdown("### Embed on your website (responsive)")
+            st.markdown(
+                "1) Upload **`scatter_zones.html`** (downloaded above) to any public URL (e.g. your site, GitHub Pages).  \n"
+                "2) Paste this snippet where you want the chart:"
+            )
+            responsive_embed = """<iframe
+  src="https://YOUR-DOMAIN/path/scatter_zones.html"
+  loading="lazy"
+  style="width: 100%; aspect-ratio: 16 / 10; border: 0;">
+</iframe>"""
+            st.code(responsive_embed, language="html")
 
         except Exception as e:
             st.error(str(e))
@@ -436,7 +442,7 @@ elif page == "Documentation & Links":
     - Export processed CSV with assigned Zone
 
     ### Tips
-    - If labels overlap, zoom in with the Plotly toolbar or temporarily hide labels before export.
+    - If labels overlap, zoom with the Plotly toolbar or temporarily hide labels before export.
     - Vector formats (PDF/SVG/EPS) are great for publication; raster (PNG/JPG) suits slides.
 
     ### Links
