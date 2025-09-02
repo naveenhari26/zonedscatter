@@ -209,19 +209,26 @@ if page == "Scatter Zone Plotter":
                 dpi = st.number_input("DPI (resolution)", value=300, step=50, min_value=72, max_value=600)
                 width_in = st.number_input("Width (inches)", value=7.0, step=0.5)
                 height_in = st.number_input("Height (inches)", value=6.0, step=0.5)
-
-                try:
-                    img_bytes = fig.to_image(
+                
+                if fmt in ["png", "jpg"]:
+                    dpi = st.number_input("DPI (resolution)", value=300, step=50, min_value=72, max_value=600)
+                    width_in = st.number_input("Width (inches)", value=7.0, step=0.5)
+                    height_in = st.number_input("Height (inches)", value=6.0, step=0.5)
+                
+                    width_px = int(width_in * dpi)
+                    height_px = int(height_in * dpi)
+                
+                    img_bytes = pio.to_image(
+                        fig,
                         format=fmt,
-                        width=int(width_in * dpi),
-                        height=int(height_in * dpi),
-                        scale=1,
-                        engine="kaleido"
+                        width=width_px,
+                        height=height_px,
+                        scale=1
                     )
-                except Exception:
-                    img_bytes = pio.to_image(fig, format=fmt,
-                                             width=int(width_in * dpi),
-                                             height=int(height_in * dpi))
+                else:
+                    st.info("DPI/dimensions not applicable for vector formats (PDF, EPS, SVG).")
+                    img_bytes = pio.to_image(fig, format=fmt)
+
             else:
                 st.info("DPI/dimensions not applicable for vector formats (PDF, EPS, SVG).")
                 try:
