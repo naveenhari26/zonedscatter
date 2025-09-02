@@ -186,9 +186,9 @@ if page == "Scatter Zone Plotter":
         
             # Create a row of color pickers, wrapping every 4 items
             colors = {}
-            for i in range(0, len(color_keys), 4):
-                row = st.columns(4)
-                for col, (label, key) in zip(row, color_keys[i:i+4]):
+            for i in range(0, len(color_keys), 8):
+                row = st.columns(8)
+                for col, (label, key) in zip(row, color_keys[i:i+8]):
                     colors[key] = col.color_picker(label, DEFAULT_COLORS[key], key=f"color_{key}")
 
         with st.expander("💾 Save/Load Settings", expanded=False):
