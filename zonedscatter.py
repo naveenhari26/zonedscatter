@@ -1,9 +1,14 @@
+import io
 import json
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
-import plotly.io as pio
 import streamlit as st
+
+# Matplotlib only for exporting (no Kaleido / Chrome needed)
+import matplotlib
+matplotlib.use("Agg")  # headless
+import matplotlib.pyplot as plt
 
 # ---------- Config ----------
 st.set_page_config(page_title="Scatter Zone Plotter", layout="wide")
@@ -24,9 +29,10 @@ def to_numeric_series(s: pd.Series) -> pd.Series:
     return pd.to_numeric(s, errors="coerce")
 
 def compute_cut(mode: str, series: pd.Series, manual: float) -> float:
-    if mode == "mean":
+    m = mode.lower()
+    if m == "mean":
         return float(series.mean())
-    if mode == "median":
+    if m == "median":
         return float(series.median())
     return float(manual or 0.0)
 
@@ -40,19 +46,19 @@ def zone_name(x, y, cut_x, cut_y) -> str:
     else:
         return "Zone IV"
 
-def build_figure(df, x, y, label_col, include_labels, scale_mode,
-                 line_mode_x, line_mode_y, manual_x, manual_y,
-                 title, xlabel, ylabel, colors):
+def scale_info(scale_mode: str):
+    m = scale_mode.lower()
+    if m == "lakhs":
+        return 1e5, " (in Lakhs)"
+    if m == "crores":
+        return 1e7, " (in Crores)"
+    return 1, ""
 
-    # ---- scale ----
-    scale_mode = scale_mode.lower()
-    if scale_mode == "lakhs":
-        scale, unit = 1e5, " (in Lakhs)"
-    elif scale_mode == "crores":
-        scale, unit = 1e7, " (in Crores)"
-    else:
-        scale, unit = 1, ""
-
+def build_plotly_figure(df, x, y, label_col, include_labels, scale_mode,
+                        line_mode_x, line_mode_y, manual_x, manual_y,
+                        title, xlabel, ylabel, colors):
+    # scale
+    scale, unit = scale_info(scale_mode)
     df = df.copy()
     df["_x"] = to_numeric_series(df[x]) / scale
     df["_y"] = to_numeric_series(df[y]) / scale
@@ -63,13 +69,13 @@ def build_figure(df, x, y, label_col, include_labels, scale_mode,
     cut_x = compute_cut(line_mode_x, df["_x"], manual_x / scale if scale != 1 else manual_x)
     cut_y = compute_cut(line_mode_y, df["_y"], manual_y / scale if scale != 1 else manual_y)
 
-    # ---- axis ranges ----
+    # axis ranges
     x0, x1 = df["_x"].min(), df["_x"].max()
     y0, y1 = df["_y"].min(), df["_y"].max()
     xpad, ypad = 0.05 * (x1 - x0 or 1), 0.05 * (y1 - y0 or 1)
     x0, x1, y0, y1 = x0 - xpad, x1 + xpad, y0 - ypad, y1 + ypad
 
-    # ---- scatter ----
+    # scatter
     if include_labels and label_col:
         mode, text_vals = "markers+text", df[label_col].astype(str)
     else:
@@ -93,7 +99,7 @@ def build_figure(df, x, y, label_col, include_labels, scale_mode,
         name=f"Y line ({line_mode_y.capitalize()} = {cut_y:,.2f})"
     )
 
-    # ---- zones ----
+    # zones
     shapes = [
         dict(type="rect", x0=x0, x1=cut_x, y0=y0, y1=cut_y,
              fillcolor=colors["zone1"], opacity=0.12, line_width=0),
@@ -118,16 +124,107 @@ def build_figure(df, x, y, label_col, include_labels, scale_mode,
     fig = go.Figure([scatter, line_x_trace, line_y_trace])
     fig.update_layout(
         title=dict(text=title, x=0.5),
-        xaxis=dict(title=xlabel+unit, range=[x0, x1]),
-        yaxis=dict(title=ylabel+unit, range=[y0, y1]),
+        xaxis=dict(title=xlabel + unit, range=[x0, x1]),
+        yaxis=dict(title=ylabel + unit, range=[y0, y1]),
         shapes=shapes, annotations=annotations,
         legend=dict(orientation="h", y=1.05),
         margin=dict(l=40, r=40, t=60, b=60),
-        height=700  # taller for better view
+        height=720  # taller than before; not 1:1 to fill viewer
     )
 
-    df["Zone"] = [zone_name(px, py, cut_x, cut_y) for px, py in zip(df["_x"], df["_y"])]
-    return fig, cut_x, cut_y, df
+    # add zone labels to returned frame
+    df_out = df.copy()
+    df_out["Zone"] = [zone_name(px, py, cut_x, cut_y) for px, py in zip(df["_x"], df["_y"])]
+    return fig, cut_x, cut_y, df_out, unit
+
+def export_with_matplotlib(
+    df_proc: pd.DataFrame,
+    cut_x: float,
+    cut_y: float,
+    title: str,
+    xlabel: str,
+    ylabel: str,
+    colors: dict,
+    include_labels: bool,
+    label_col: str | None,
+    fmt: str,
+    dpi: int | None,
+    width_in: float | None,
+    height_in: float | None,
+) -> bytes:
+    """
+    Render a static image using Matplotlib from the already-processed df (with '_x','_y').
+    Supports png, jpg, pdf, eps, svg — no Kaleido or Chrome required.
+    """
+    # Choose figure size
+    if width_in is None or height_in is None:
+        width_in, height_in = 7.0, 6.0
+
+    plt.style.use("seaborn-v0_8-whitegrid")
+    fig, ax = plt.subplots(figsize=(width_in, height_in), dpi=(dpi or 100))
+
+    x = df_proc["_x"].to_numpy()
+    y = df_proc["_y"].to_numpy()
+
+    # Axis padding
+    x0, x1 = x.min(), x.max()
+    y0, y1 = y.min(), y.max()
+    xpad, ypad = 0.05 * (x1 - x0 or 1), 0.05 * (y1 - y0 or 1)
+    x0, x1, y0, y1 = x0 - xpad, x1 + xpad, y0 - ypad, y1 + ypad
+
+    # Quadrants (rectangles)
+    ax.add_patch(plt.Rectangle((x0, y0), cut_x - x0, cut_y - y0, color=colors["zone1"], alpha=0.12))
+    ax.add_patch(plt.Rectangle((x0, cut_y), cut_x - x0, y1 - cut_y, color=colors["zone2"], alpha=0.12))
+    ax.add_patch(plt.Rectangle((cut_x, cut_y), x1 - cut_x, y1 - cut_y, color=colors["zone3"], alpha=0.12))
+    ax.add_patch(plt.Rectangle((cut_x, y0), x1 - cut_x, cut_y - y0, color=colors["zone4"], alpha=0.12))
+
+    # Scatter
+    ax.scatter(x, y, s=45, c=colors["scatter"], edgecolors="white", linewidths=0.7)
+
+    # Labels
+    if include_labels and label_col and (label_col in df_proc.columns):
+        for _, r in df_proc.iterrows():
+            ax.text(r["_x"], r["_y"], str(r[label_col]), fontsize=8,
+                    color=colors["labels"], ha="left", va="bottom")
+
+    # Lines
+    ax.axvline(cut_x, color=colors["line_x"], linestyle="--", linewidth=1.8,
+               label=f"X line ({cut_x:,.2f})")
+    ax.axhline(cut_y, color=colors["line_y"], linestyle="--", linewidth=1.8,
+               label=f"Y line ({cut_y:,.2f})")
+
+    # Zone names
+    ax.text((x0 + cut_x) / 2, (y0 + cut_y) / 2, "Zone I", color=colors["zone1"],
+            fontsize=11, fontweight="bold", ha="center", va="center")
+    ax.text((x0 + cut_x) / 2, (cut_y + y1) / 2, "Zone II", color=colors["zone2"],
+            fontsize=11, fontweight="bold", ha="center", va="center")
+    ax.text((cut_x + x1) / 2, (cut_y + y1) / 2, "Zone III", color=colors["zone3"],
+            fontsize=11, fontweight="bold", ha="center", va="center")
+    ax.text((cut_x + x1) / 2, (y0 + cut_y) / 2, "Zone IV", color=colors["zone4"],
+            fontsize=11, fontweight="bold", ha="center", va="center")
+
+    ax.set_xlim(x0, x1)
+    ax.set_ylim(y0, y1)
+    ax.set_title(title, fontsize=13, fontweight="bold")
+    ax.set_xlabel(xlabel, fontsize=11)
+    ax.set_ylabel(ylabel, fontsize=11)
+    ax.legend(loc="upper left", fontsize=9)
+
+    buf = io.BytesIO()
+    save_kwargs = {}
+    if fmt.lower() in ("jpg", "jpeg"):
+        save_kwargs["format"] = "jpg"
+        save_kwargs["facecolor"] = "white"
+    else:
+        save_kwargs["format"] = fmt.lower()
+    if fmt.lower() in ("png", "jpg", "jpeg"):
+        save_kwargs["dpi"] = dpi or 300
+
+    fig.tight_layout()
+    fig.savefig(buf, **save_kwargs, bbox_inches="tight")
+    plt.close(fig)
+    buf.seek(0)
+    return buf.getvalue()
 
 # ---------- Navigation ----------
 page = st.sidebar.radio("Navigation", ["Scatter Zone Plotter", "Documentation & Links"])
@@ -139,7 +236,7 @@ if page == "Scatter Zone Plotter":
 
     with col1:
         with st.expander("📂 Data", expanded=True):
-            up = st.file_uploader("Upload CSV or Excel", type=["csv", "xlsx", "xls"])
+            up = st.file_uploader("Upload CSV or Excel", type=["csv", "xlsx", "xls"], key="uploader")
             df = None
             if up is not None:
                 if up.name.endswith((".xlsx", ".xls")):
@@ -160,8 +257,7 @@ if page == "Scatter Zone Plotter":
             xlabel = st.text_input("X Label", x_col, key="xlabel_input")
             ylabel = st.text_input("Y Label", y_col, key="ylabel_input")
             include_labels = st.checkbox("Include labels", key="labels_cb")
-            label_col = st.selectbox("Label column", cols,
-                                     disabled=not include_labels, key="labelcol_select")
+            label_col = st.selectbox("Label column", cols, disabled=not include_labels, key="labelcol_select")
 
         with st.expander("⚙️ Options", expanded=True):
             scale_mode = st.radio("Scale values", ["None", "Lakhs", "Crores"], index=0, key="scale_radio")
@@ -172,8 +268,8 @@ if page == "Scatter Zone Plotter":
             title = st.text_input("Title", "Scatter Plot with Custom Zones", key="title_input")
 
         with st.expander("🎨 Colors", expanded=False):
-            st.markdown("Pick colors for each element:")
-            color_keys = [
+            st.caption("Pick colors for each element")
+            color_specs = [
                 ("Scatter", "scatter"),
                 ("Line X", "line_x"),
                 ("Line Y", "line_y"),
@@ -183,40 +279,76 @@ if page == "Scatter Zone Plotter":
                 ("Zone III", "zone3"),
                 ("Zone IV", "zone4"),
             ]
-        
-            # Create a row of color pickers, wrapping every 4 items
             colors = {}
-            for i in range(0, len(color_keys), 8):
-                row = st.columns(8)
-                for col, (label, key) in zip(row, color_keys[i:i+8]):
+            for i in range(0, len(color_specs), 4):
+                row = st.columns(4)
+                for col, (label, key) in zip(row, color_specs[i:i+4]):
                     colors[key] = col.color_picker(label, DEFAULT_COLORS[key], key=f"color_{key}")
 
         with st.expander("💾 Save/Load Settings", expanded=False):
-            settings = dict(title=title, xlabel=xlabel, ylabel=ylabel,
-                            scale_mode=scale_mode, line_mode_x=line_mode_x.lower(),
-                            line_mode_y=line_mode_y.lower(),
-                            manual_x=float(manual_x), manual_y=float(manual_y),
-                            include_labels=include_labels,
-                            label_column=label_col if include_labels else "",
-                            colors=colors, x_col=x_col, y_col=y_col)
-            st.download_button("Save settings (.json)", json.dumps(settings, indent=2),
-                               file_name="settings.json", mime="application/json")
+            settings = dict(
+                title=title, xlabel=xlabel, ylabel=ylabel,
+                scale_mode=scale_mode, line_mode_x=line_mode_x.lower(),
+                line_mode_y=line_mode_y.lower(),
+                manual_x=float(manual_x), manual_y=float(manual_y),
+                include_labels=include_labels, label_column=label_col if include_labels else "",
+                colors=colors, x_col=x_col, y_col=y_col,
+            )
+            st.download_button(
+                "Save settings (.json)",
+                data=json.dumps(settings, indent=2),
+                file_name="settings.json",
+                mime="application/json",
+                key="save_json_btn"
+            )
+
+            st.markdown("---")
+            loaded = st.file_uploader("Load settings (.json)", type=["json"], key="load_json")
+            if loaded is not None:
+                try:
+                    cfg = json.load(loaded)
+                    # Apply to session state then rerun
+                    st.session_state["title_input"] = cfg.get("title", title)
+                    st.session_state["xlabel_input"] = cfg.get("xlabel", xlabel)
+                    st.session_state["ylabel_input"] = cfg.get("ylabel", ylabel)
+                    st.session_state["scale_radio"] = cfg.get("scale_mode", scale_mode)
+                    st.session_state["xline_radio"] = cfg.get("line_mode_x", line_mode_x).capitalize()
+                    st.session_state["yline_radio"] = cfg.get("line_mode_y", line_mode_y).capitalize()
+                    st.session_state["manual_x"] = float(cfg.get("manual_x", manual_x))
+                    st.session_state["manual_y"] = float(cfg.get("manual_y", manual_y))
+                    st.session_state["labels_cb"] = bool(cfg.get("include_labels", include_labels))
+                    if cfg.get("label_column") in cols:
+                        st.session_state["labelcol_select"] = cfg["label_column"]
+                    if cfg.get("x_col") in cols:
+                        st.session_state["xcol_select"] = cfg["x_col"]
+                    if cfg.get("y_col") in cols:
+                        st.session_state["ycol_select"] = cfg["y_col"]
+                    for k, v in cfg.get("colors", {}).items():
+                        if k in DEFAULT_COLORS:
+                            st.session_state[f"color_{k}"] = v
+                    st.success("Settings loaded. UI updated.")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Invalid settings file: {e}")
 
     with col2:
         st.subheader("Preview")
         try:
-            fig, cut_x, cut_y, plot_df = build_figure(
+            fig, cut_x, cut_y, plot_df, unit = build_plotly_figure(
                 df, x_col, y_col, label_col if include_labels else None, include_labels,
-                scale_mode, line_mode_x.lower(), line_mode_y.lower(),
-                manual_x, manual_y, title, xlabel, ylabel, colors
+                scale_mode, line_mode_x, line_mode_y, manual_x, manual_y,
+                title, xlabel, ylabel, colors
             )
             st.plotly_chart(fig, use_container_width=True)
 
             csv_bytes = plot_df.to_csv(index=False).encode("utf-8")
-            st.download_button("Download processed CSV", csv_bytes,
-                               "processed_with_zones.csv", "text/csv")
+            st.download_button("Download processed CSV",
+                               data=csv_bytes,
+                               file_name="processed_with_zones.csv",
+                               mime="text/csv",
+                               key="csv_dl")
 
-            # --- Export options ---
+            # --- Export options (Matplotlib backend, no Kaleido) ---
             st.markdown("### Export Options")
             fmt = st.selectbox("File format", ["png", "jpg", "pdf", "eps", "svg"], index=0, key="fmt_select")
 
@@ -225,20 +357,27 @@ if page == "Scatter Zone Plotter":
                                       min_value=72, max_value=600, key="dpi_input")
                 width_in = st.number_input("Width (inches)", value=7.0, step=0.5, key="width_input")
                 height_in = st.number_input("Height (inches)", value=6.0, step=0.5, key="height_input")
-
-                width_px = int(width_in * dpi)
-                height_px = int(height_in * dpi)
-
-                img_bytes = pio.to_image(
-                    fig,
-                    format=fmt,
-                    width=width_px,
-                    height=height_px,
-                    scale=1
-                )
             else:
-                st.info("DPI/dimensions not applicable for vector formats (PDF, EPS, SVG).")
-                img_bytes = pio.to_image(fig, format=fmt)
+                dpi = None
+                # vector: allow size tweak if you want, or keep defaults
+                width_in = st.number_input("Width (inches)", value=7.0, step=0.5, key="v_width_input")
+                height_in = st.number_input("Height (inches)", value=6.0, step=0.5, key="v_height_input")
+                st.info("DPI is not applicable for vector formats.")
+
+            # Prepare static image with Matplotlib
+            img_bytes = export_with_matplotlib(
+                plot_df, cut_x, cut_y,
+                title=title,
+                xlabel=xlabel + unit,
+                ylabel=ylabel + unit,
+                colors=colors,
+                include_labels=include_labels,
+                label_col=(label_col if include_labels else None),
+                fmt=fmt,
+                dpi=dpi,
+                width_in=width_in,
+                height_in=height_in
+            )
 
             st.download_button(
                 f"Download plot as .{fmt}",
@@ -249,10 +388,10 @@ if page == "Scatter Zone Plotter":
                       else "application/postscript" if fmt == "eps"
                       else "image/png" if fmt == "png"
                       else "image/jpeg"),
-                key="download_button"
+                key="img_download"
             )
 
-            # Optional: interactive HTML download
+            # Optional interactive HTML download (always works)
             html_bytes = fig.to_html(full_html=False).encode("utf-8")
             st.download_button(
                 "Download interactive HTML",
@@ -269,23 +408,28 @@ elif page == "Documentation & Links":
     st.title("Documentation")
     st.markdown("""
     ### What is this?
-    A tool to classify scatter data into 4 quadrants (zones) based on mean/median/manual thresholds.
+    A tool to classify scatter data into 4 quadrants (zones) using mean / median / manual cut lines.
 
     ### Use cases
-    - Municipal finance: classify tax vs non-tax revenue
-    - Economics: compare expenditure categories
-    - Business: identify high/low performers
+    - Municipal finance: tax vs non-tax revenue
+    - Hospital/operations: BOR vs TOR style plots
+    - Any 2D metric segmentation
 
     ### Features
-    - CSV/Excel upload (with sheet selection)
+    - CSV/Excel upload with sheet selection
     - Scaling (None, Lakhs, Crores)
-    - Flexible line positioning (Mean, Median, Manual)
-    - Custom colors (compact sidebar grid)
-    - Save/Load settings
-    - Export plot (PNG/JPG with DPI & size, PDF/EPS/SVG vector)
-    - Export processed CSV with Zone labels
+    - Flexible cut lines (Mean, Median, Manual)
+    - Custom colors (responsive grid)
+    - Save/Load settings (.json)
+    - Interactive preview (Plotly)
+    - Static export **without Kaleido** (PNG/JPG/PDF/EPS/SVG via Matplotlib)
+    - Export processed CSV with assigned Zone
+
+    ### Tips
+    - If labels overlap, zoom in with the Plotly toolbar or temporarily hide labels before export.
+    - Vector formats (PDF/SVG/EPS) are great for publication; raster (PNG/JPG) suits slides.
 
     ### Links
-    - [Streamlit Documentation](https://docs.streamlit.io)
-    - [Plotly Graphing](https://plotly.com/python/)
+    - [Streamlit Docs](https://docs.streamlit.io)
+    - [Plotly Python](https://plotly.com/python/)
     """)
