@@ -128,72 +128,65 @@ page = st.sidebar.radio("Navigation", ["Scatter Zone Plotter", "Documentation & 
 if page == "Scatter Zone Plotter":
     st.title("Scatter Zone Plotter (Web)")
 
-    # Layout: Left (controls), Right (plot)
     col1, col2 = st.columns([1, 2])
 
     with col1:
-        # ---- Data ----
-        st.header("📂 Data")
-        up = st.file_uploader("Upload CSV or Excel", type=["csv", "xlsx", "xls"])
-        df = None
-        if up is not None:
-            if up.name.endswith((".xlsx", ".xls")):
-                xls = pd.ExcelFile(up)
-                sheet = st.selectbox("Choose sheet", xls.sheet_names)
-                df = xls.parse(sheet)
-            else:
-                df = pd.read_csv(up)
+        with st.expander("📂 Data", expanded=True):
+            up = st.file_uploader("Upload CSV or Excel", type=["csv", "xlsx", "xls"])
+            df = None
+            if up is not None:
+                if up.name.endswith((".xlsx", ".xls")):
+                    xls = pd.ExcelFile(up)
+                    sheet = st.selectbox("Choose sheet", xls.sheet_names)
+                    df = xls.parse(sheet)
+                else:
+                    df = pd.read_csv(up)
 
-        if df is None:
-            st.info("Upload a dataset to start.")
-            st.stop()
+            if df is None:
+                st.info("Upload a dataset to start.")
+                st.stop()
 
-        # ---- Variables ----
-        st.header("🔢 Variables")
-        cols = df.columns.tolist()
-        x_col = st.selectbox("X Column", cols)
-        y_col = st.selectbox("Y Column", cols)
-        xlabel = st.text_input("X Label", x_col)
-        ylabel = st.text_input("Y Label", y_col)
-        include_labels = st.checkbox("Include labels")
-        label_col = st.selectbox("Label column", cols, disabled=not include_labels)
+        with st.expander("🔢 Variables", expanded=True):
+            cols = df.columns.tolist()
+            x_col = st.selectbox("X Column", cols)
+            y_col = st.selectbox("Y Column", cols)
+            xlabel = st.text_input("X Label", x_col)
+            ylabel = st.text_input("Y Label", y_col)
+            include_labels = st.checkbox("Include labels")
+            label_col = st.selectbox("Label column", cols, disabled=not include_labels)
 
-        # ---- Options ----
-        st.header("⚙️ Options")
-        scale_mode = st.radio("Scale values", ["None", "Lakhs", "Crores"], index=0)
-        line_mode_x = st.radio("Vertical (X) line", ["Mean", "Median", "Manual"], index=1)
-        manual_x = st.number_input("Manual X", value=0.0)
-        line_mode_y = st.radio("Horizontal (Y) line", ["Mean", "Median", "Manual"], index=1)
-        manual_y = st.number_input("Manual Y", value=0.0)
-        title = st.text_input("Title", "Scatter Plot with Custom Zones")
+        with st.expander("⚙️ Options", expanded=True):
+            scale_mode = st.radio("Scale values", ["None", "Lakhs", "Crores"], index=0)
+            line_mode_x = st.radio("Vertical (X) line", ["Mean", "Median", "Manual"], index=1)
+            manual_x = st.number_input("Manual X", value=0.0)
+            line_mode_y = st.radio("Horizontal (Y) line", ["Mean", "Median", "Manual"], index=1)
+            manual_y = st.number_input("Manual Y", value=0.0)
+            title = st.text_input("Title", "Scatter Plot with Custom Zones")
 
-        # --- Colors compact grid ---
-        st.markdown("**🎨 Colors**")
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            scatter_c = st.color_picker("Scatter", DEFAULT_COLORS["scatter"])
-            line_x_c = st.color_picker("Line X", DEFAULT_COLORS["line_x"])
-            zone1_c = st.color_picker("Zone I", DEFAULT_COLORS["zone1"])
-        with c2:
-            line_y_c = st.color_picker("Line Y", DEFAULT_COLORS["line_y"])
-            labels_c = st.color_picker("Labels", DEFAULT_COLORS["labels"])
-            zone2_c = st.color_picker("Zone II", DEFAULT_COLORS["zone2"])
-        with c3:
-            zone3_c = st.color_picker("Zone III", DEFAULT_COLORS["zone3"])
-            zone4_c = st.color_picker("Zone IV", DEFAULT_COLORS["zone4"])
-        colors = {"scatter": scatter_c, "line_x": line_x_c, "line_y": line_y_c,
-                  "zone1": zone1_c, "zone2": zone2_c, "zone3": zone3_c, "zone4": zone4_c, "labels": labels_c}
+        with st.expander("🎨 Colors", expanded=False):
+            c1, c2 = st.columns(2)
+            with c1:
+                scatter_c = st.color_picker("Scatter", DEFAULT_COLORS["scatter"])
+                line_x_c = st.color_picker("Line X", DEFAULT_COLORS["line_x"])
+                zone1_c = st.color_picker("Zone I", DEFAULT_COLORS["zone1"])
+                zone3_c = st.color_picker("Zone III", DEFAULT_COLORS["zone3"])
+            with c2:
+                line_y_c = st.color_picker("Line Y", DEFAULT_COLORS["line_y"])
+                labels_c = st.color_picker("Labels", DEFAULT_COLORS["labels"])
+                zone2_c = st.color_picker("Zone II", DEFAULT_COLORS["zone2"])
+                zone4_c = st.color_picker("Zone IV", DEFAULT_COLORS["zone4"])
+            colors = {"scatter": scatter_c, "line_x": line_x_c, "line_y": line_y_c,
+                      "zone1": zone1_c, "zone2": zone2_c, "zone3": zone3_c, "zone4": zone4_c, "labels": labels_c}
 
-        # ---- Save/Load ----
-        st.header("💾 Save/Load Settings")
-        settings = dict(title=title, xlabel=xlabel, ylabel=ylabel,
-                        scale_mode=scale_mode, line_mode_x=line_mode_x.lower(),
-                        line_mode_y=line_mode_y.lower(),
-                        manual_x=float(manual_x), manual_y=float(manual_y),
-                        include_labels=include_labels, label_column=label_col if include_labels else "",
-                        colors=colors, x_col=x_col, y_col=y_col)
-        st.download_button("Save settings (.json)", json.dumps(settings, indent=2),
-                           file_name="settings.json", mime="application/json")
+        with st.expander("💾 Save/Load Settings", expanded=False):
+            settings = dict(title=title, xlabel=xlabel, ylabel=ylabel,
+                            scale_mode=scale_mode, line_mode_x=line_mode_x.lower(),
+                            line_mode_y=line_mode_y.lower(),
+                            manual_x=float(manual_x), manual_y=float(manual_y),
+                            include_labels=include_labels, label_column=label_col if include_labels else "",
+                            colors=colors, x_col=x_col, y_col=y_col)
+            st.download_button("Save settings (.json)", json.dumps(settings, indent=2),
+                               file_name="settings.json", mime="application/json")
 
     with col2:
         st.subheader("Preview")
