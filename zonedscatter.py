@@ -172,19 +172,24 @@ if page == "Scatter Zone Plotter":
             title = st.text_input("Title", "Scatter Plot with Custom Zones", key="title_input")
 
         with st.expander("🎨 Colors", expanded=False):
-            c1, c2 = st.columns(2)
-            with c1:
-                scatter_c = st.color_picker("Scatter", DEFAULT_COLORS["scatter"], key="scatter_c")
-                line_x_c = st.color_picker("Line X", DEFAULT_COLORS["line_x"], key="line_x_c")
-                zone1_c = st.color_picker("Zone I", DEFAULT_COLORS["zone1"], key="zone1_c")
-                zone3_c = st.color_picker("Zone III", DEFAULT_COLORS["zone3"], key="zone3_c")
-            with c2:
-                line_y_c = st.color_picker("Line Y", DEFAULT_COLORS["line_y"], key="line_y_c")
-                labels_c = st.color_picker("Labels", DEFAULT_COLORS["labels"], key="labels_c")
-                zone2_c = st.color_picker("Zone II", DEFAULT_COLORS["zone2"], key="zone2_c")
-                zone4_c = st.color_picker("Zone IV", DEFAULT_COLORS["zone4"], key="zone4_c")
-            colors = {"scatter": scatter_c, "line_x": line_x_c, "line_y": line_y_c,
-                      "zone1": zone1_c, "zone2": zone2_c, "zone3": zone3_c, "zone4": zone4_c, "labels": labels_c}
+            st.markdown("Pick colors for each element:")
+            color_keys = [
+                ("Scatter", "scatter"),
+                ("Line X", "line_x"),
+                ("Line Y", "line_y"),
+                ("Labels", "labels"),
+                ("Zone I", "zone1"),
+                ("Zone II", "zone2"),
+                ("Zone III", "zone3"),
+                ("Zone IV", "zone4"),
+            ]
+        
+            # Create a row of color pickers, wrapping every 4 items
+            colors = {}
+            for i in range(0, len(color_keys), 4):
+                row = st.columns(4)
+                for col, (label, key) in zip(row, color_keys[i:i+4]):
+                    colors[key] = col.color_picker(label, DEFAULT_COLORS[key], key=f"color_{key}")
 
         with st.expander("💾 Save/Load Settings", expanded=False):
             settings = dict(title=title, xlabel=xlabel, ylabel=ylabel,
