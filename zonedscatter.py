@@ -204,38 +204,27 @@ if page == "Scatter Zone Plotter":
             # --- Export options ---
             st.markdown("### Export Options")
             fmt = st.selectbox("File format", ["png", "jpg", "pdf", "eps", "svg"], index=0)
-
+            
             if fmt in ["png", "jpg"]:
-                dpi = st.number_input("DPI (resolution)", value=300, step=50, min_value=72, max_value=600)
-                width_in = st.number_input("Width (inches)", value=7.0, step=0.5)
-                height_in = st.number_input("Height (inches)", value=6.0, step=0.5)
-                
-                if fmt in ["png", "jpg"]:
-                    dpi = st.number_input("DPI (resolution)", value=300, step=50, min_value=72, max_value=600)
-                    width_in = st.number_input("Width (inches)", value=7.0, step=0.5)
-                    height_in = st.number_input("Height (inches)", value=6.0, step=0.5)
-                
-                    width_px = int(width_in * dpi)
-                    height_px = int(height_in * dpi)
-                
-                    img_bytes = pio.to_image(
-                        fig,
-                        format=fmt,
-                        width=width_px,
-                        height=height_px,
-                        scale=1
-                    )
-                else:
-                    st.info("DPI/dimensions not applicable for vector formats (PDF, EPS, SVG).")
-                    img_bytes = pio.to_image(fig, format=fmt)
-
+                dpi = st.number_input("DPI (resolution)", value=300, step=50,
+                                      min_value=72, max_value=600, key="dpi_input")
+                width_in = st.number_input("Width (inches)", value=7.0, step=0.5, key="width_input")
+                height_in = st.number_input("Height (inches)", value=6.0, step=0.5, key="height_input")
+            
+                width_px = int(width_in * dpi)
+                height_px = int(height_in * dpi)
+            
+                img_bytes = pio.to_image(
+                    fig,
+                    format=fmt,
+                    width=width_px,
+                    height=height_px,
+                    scale=1
+                )
             else:
                 st.info("DPI/dimensions not applicable for vector formats (PDF, EPS, SVG).")
-                try:
-                    img_bytes = fig.to_image(format=fmt, engine="kaleido")
-                except Exception:
-                    img_bytes = pio.to_image(fig, format=fmt)
-
+                img_bytes = pio.to_image(fig, format=fmt)
+            
             st.download_button(
                 f"Download plot as .{fmt}",
                 data=img_bytes,
@@ -245,8 +234,19 @@ if page == "Scatter Zone Plotter":
                       else "application/postscript" if fmt == "eps"
                       else "image/png" if fmt == "png"
                       else "image/jpeg"),
+                key="download_button"
             )
-
+            
+            # Optional: interactive HTML download
+            html_bytes = fig.to_html(full_html=False).encode("utf-8")
+            st.download_button(
+                "Download interactive HTML",
+                data=html_bytes,
+                file_name="scatter_zones.html",
+                mime="text/html",
+                key="html_download"
+            )
+            
         except Exception as e:
             st.error(str(e))
 
