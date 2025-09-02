@@ -1,6 +1,5 @@
 import io
 import json
-import base64
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
@@ -130,28 +129,17 @@ def build_plotly_figure(df, x, y, label_col, include_labels, scale_mode,
         shapes=shapes, annotations=annotations,
         legend=dict(orientation="h", y=1.05),
         margin=dict(l=40, r=40, t=60, b=60),
-        height=720  # taller; not 1:1
+        height=720
     )
 
     df_out = df.copy()
     df_out["Zone"] = [zone_name(px, py, cut_x, cut_y) for px, py in zip(df["_x"], df["_y"])]
     return fig, cut_x, cut_y, df_out, unit
 
-def export_with_matplotlib(
-    df_proc: pd.DataFrame,
-    cut_x: float,
-    cut_y: float,
-    title: str,
-    xlabel: str,
-    ylabel: str,
-    colors: dict,
-    include_labels: bool,
-    label_col: str | None,
-    fmt: str,
-    dpi: int | None,
-    width_in: float | None,
-    height_in: float | None,
-) -> bytes:
+def export_with_matplotlib(df_proc, cut_x, cut_y,
+                           title, xlabel, ylabel,
+                           colors, include_labels, label_col,
+                           fmt, dpi, width_in, height_in):
     if width_in is None or height_in is None:
         width_in, height_in = 7.0, 6.0
 
@@ -227,7 +215,6 @@ if page == "Scatter Zone Plotter":
     col1, col2 = st.columns([1, 2])
 
     with col1:
-        # Data
         with st.expander("📂 Data", expanded=True):
             up = st.file_uploader("Upload CSV or Excel", type=["csv", "xlsx", "xls"], key="uploader")
             df = None
@@ -238,12 +225,10 @@ if page == "Scatter Zone Plotter":
                     df = xls.parse(sheet)
                 else:
                     df = pd.read_csv(up)
-
             if df is None:
                 st.info("Upload a dataset to start.")
                 st.stop()
 
-        # Variables
         with st.expander("🔢 Variables", expanded=True):
             cols = df.columns.tolist()
             x_col = st.selectbox("X Column", cols, key="xcol_select")
@@ -253,7 +238,6 @@ if page == "Scatter Zone Plotter":
             include_labels = st.checkbox("Include labels", key="labels_cb")
             label_col = st.selectbox("Label column", cols, disabled=not include_labels, key="labelcol_select")
 
-        # Options
         with st.expander("⚙️ Options", expanded=True):
             scale_mode = st.radio("Scale values", ["None", "Lakhs", "Crores"], index=0, key="scale_radio")
             line_mode_x = st.radio("Vertical (X) line", ["Mean", "Median", "Manual"], index=1, key="xline_radio")
@@ -262,7 +246,6 @@ if page == "Scatter Zone Plotter":
             manual_y = st.number_input("Manual Y", value=0.0, key="manual_y")
             title = st.text_input("Title", "Scatter Plot with Custom Zones", key="title_input")
 
-        # Colors
         with st.expander("🎨 Colors", expanded=False):
             st.caption("Pick colors for each element")
             color_specs = [
@@ -281,7 +264,6 @@ if page == "Scatter Zone Plotter":
                 for col, (label, key) in zip(row, color_specs[i:i+4]):
                     colors[key] = col.color_picker(label, DEFAULT_COLORS[key], key=f"color_{key}")
 
-        # Save/Load
         with st.expander("💾 Save/Load Settings", expanded=False):
             settings = dict(
                 title=title, xlabel=xlabel, ylabel=ylabel,
@@ -304,25 +286,7 @@ if page == "Scatter Zone Plotter":
             if loaded is not None:
                 try:
                     cfg = json.load(loaded)
-                    # Apply to session state then rerun
-                    st.session_state["title_input"] = cfg.get("title", title)
-                    st.session_state["xlabel_input"] = cfg.get("xlabel", xlabel)
-                    st.session_state["ylabel_input"] = cfg.get("ylabel", ylabel)
-                    st.session_state["scale_radio"] = cfg.get("scale_mode", scale_mode)
-                    st.session_state["xline_radio"] = cfg.get("line_mode_x", line_mode_x).capitalize()
-                    st.session_state["yline_radio"] = cfg.get("line_mode_y", line_mode_y).capitalize()
-                    st.session_state["manual_x"] = float(cfg.get("manual_x", manual_x))
-                    st.session_state["manual_y"] = float(cfg.get("manual_y", manual_y))
-                    st.session_state["labels_cb"] = bool(cfg.get("include_labels", include_labels))
-                    if cfg.get("label_column") in cols:
-                        st.session_state["labelcol_select"] = cfg["label_column"]
-                    if cfg.get("x_col") in cols:
-                        st.session_state["xcol_select"] = cfg["x_col"]
-                    if cfg.get("y_col") in cols:
-                        st.session_state["ycol_select"] = cfg["y_col"]
-                    for k, v in cfg.get("colors", {}).items():
-                        if k in DEFAULT_COLORS:
-                            st.session_state[f"color_{k}"] = v
+                    st.session_state.update(cfg)
                     st.success("Settings loaded. UI updated.")
                     st.rerun()
                 except Exception as e:
@@ -353,7 +317,6 @@ if page == "Scatter Zone Plotter":
                 height_in = st.number_input("Height (inches)", value=6.0, step=0.5, key="v_height_input")
                 st.info("DPI is not applicable for vector formats.")
 
-            # Prepare static image with Matplotlib
             img_bytes = export_with_matplotlib(
                 plot_df, cut_x, cut_y,
                 title=title,
@@ -368,11 +331,8 @@ if page == "Scatter Zone Plotter":
                 height_in=height_in
             )
 
-            # Generate interactive HTML once (used for download + embed instructions)
-            fig_html = fig.to_html(full_html=False)
-            html_bytes = fig_html.encode("utf-8")
+            fig_html = fig.to_html(full_html=False).encode("utf-8")
 
-            # Buttons aligned horizontally
             colA, colB, colC = st.columns(3)
             with colA:
                 st.download_button(
@@ -389,7 +349,7 @@ if page == "Scatter Zone Plotter":
             with colB:
                 st.download_button(
                     "Download interactive HTML",
-                    data=html_bytes,
+                    data=fig_html,
                     file_name="scatter_zones.html",
                     mime="text/html",
                     key="html_download"
@@ -403,19 +363,6 @@ if page == "Scatter Zone Plotter":
                     mime="text/csv",
                     key="csv_dl2"
                 )
-
-            # Responsive embed instructions (lightweight, no srcdoc here)
-            st.markdown("### Embed on your website (responsive)")
-            st.markdown(
-                "1) Upload **`scatter_zones.html`** (downloaded above) to any public URL (e.g. your site, GitHub Pages).  \n"
-                "2) Paste this snippet where you want the chart:"
-            )
-            responsive_embed = """<iframe
-  src="https://YOUR-DOMAIN/path/scatter_zones.html"
-  loading="lazy"
-  style="width: 100%; aspect-ratio: 16 / 10; border: 0;">
-</iframe>"""
-            st.code(responsive_embed, language="html")
 
         except Exception as e:
             st.error(str(e))
@@ -440,12 +387,4 @@ elif page == "Documentation & Links":
     - Interactive preview (Plotly)
     - Static export **without Kaleido** (PNG/JPG/PDF/EPS/SVG via Matplotlib)
     - Export processed CSV with assigned Zone
-
-    ### Tips
-    - If labels overlap, zoom with the Plotly toolbar or temporarily hide labels before export.
-    - Vector formats (PDF/SVG/EPS) are great for publication; raster (PNG/JPG) suits slides.
-
-    ### Links
-    - [Streamlit Docs](https://docs.streamlit.io)
-    - [Plotly Python](https://plotly.com/python/)
     """)
