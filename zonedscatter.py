@@ -230,7 +230,7 @@ def export_with_matplotlib(
 page = st.sidebar.radio("Navigation", ["Scatter Zone Plotter", "Documentation & Links"])
 
 if page == "Scatter Zone Plotter":
-    st.title("Scatter Zone Plotter (Web)")
+    st.title("Scatter Zone Plotter")
 
     col1, col2 = st.columns([1, 2])
 
