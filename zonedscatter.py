@@ -95,16 +95,24 @@ def build_figure(df, x, y, label_col, include_labels, scale_mode,
 
     # ---- zones ----
     shapes = [
-        dict(type="rect", x0=x0, x1=cut_x, y0=y0, y1=cut_y, fillcolor=colors["zone1"], opacity=0.12, line_width=0),
-        dict(type="rect", x0=x0, x1=cut_x, y0=cut_y, y1=y1, fillcolor=colors["zone2"], opacity=0.12, line_width=0),
-        dict(type="rect", x0=cut_x, x1=x1, y0=cut_y, y1=y1, fillcolor=colors["zone3"], opacity=0.12, line_width=0),
-        dict(type="rect", x0=cut_x, x1=x1, y0=y0, y1=cut_y, fillcolor=colors["zone4"], opacity=0.12, line_width=0),
+        dict(type="rect", x0=x0, x1=cut_x, y0=y0, y1=cut_y,
+             fillcolor=colors["zone1"], opacity=0.12, line_width=0),
+        dict(type="rect", x0=x0, x1=cut_x, y0=cut_y, y1=y1,
+             fillcolor=colors["zone2"], opacity=0.12, line_width=0),
+        dict(type="rect", x0=cut_x, x1=x1, y0=cut_y, y1=y1,
+             fillcolor=colors["zone3"], opacity=0.12, line_width=0),
+        dict(type="rect", x0=cut_x, x1=x1, y0=y0, y1=cut_y,
+             fillcolor=colors["zone4"], opacity=0.12, line_width=0),
     ]
     annotations = [
-        dict(x=(x0+cut_x)/2, y=(y0+cut_y)/2, text="Zone I", showarrow=False, font=dict(size=14, color=colors["zone1"])),
-        dict(x=(x0+cut_x)/2, y=(cut_y+y1)/2, text="Zone II", showarrow=False, font=dict(size=14, color=colors["zone2"])),
-        dict(x=(cut_x+x1)/2, y=(cut_y+y1)/2, text="Zone III", showarrow=False, font=dict(size=14, color=colors["zone3"])),
-        dict(x=(cut_x+x1)/2, y=(y0+cut_y)/2, text="Zone IV", showarrow=False, font=dict(size=14, color=colors["zone4"])),
+        dict(x=(x0+cut_x)/2, y=(y0+cut_y)/2, text="Zone I", showarrow=False,
+             font=dict(size=14, color=colors["zone1"])),
+        dict(x=(x0+cut_x)/2, y=(cut_y+y1)/2, text="Zone II", showarrow=False,
+             font=dict(size=14, color=colors["zone2"])),
+        dict(x=(cut_x+x1)/2, y=(cut_y+y1)/2, text="Zone III", showarrow=False,
+             font=dict(size=14, color=colors["zone3"])),
+        dict(x=(cut_x+x1)/2, y=(y0+cut_y)/2, text="Zone IV", showarrow=False,
+             font=dict(size=14, color=colors["zone4"])),
     ]
 
     fig = go.Figure([scatter, line_x_trace, line_y_trace])
@@ -114,13 +122,12 @@ def build_figure(df, x, y, label_col, include_labels, scale_mode,
         yaxis=dict(title=ylabel+unit, range=[y0, y1]),
         shapes=shapes, annotations=annotations,
         legend=dict(orientation="h", y=1.05),
-        margin=dict(l=60, r=40, t=60, b=60),
-        height=650
+        margin=dict(l=40, r=40, t=60, b=60),
+        height=700  # taller for better view
     )
 
     df["Zone"] = [zone_name(px, py, cut_x, cut_y) for px, py in zip(df["_x"], df["_y"])]
     return fig, cut_x, cut_y, df
-
 
 # ---------- Navigation ----------
 page = st.sidebar.radio("Navigation", ["Scatter Zone Plotter", "Documentation & Links"])
@@ -137,7 +144,7 @@ if page == "Scatter Zone Plotter":
             if up is not None:
                 if up.name.endswith((".xlsx", ".xls")):
                     xls = pd.ExcelFile(up)
-                    sheet = st.selectbox("Choose sheet", xls.sheet_names)
+                    sheet = st.selectbox("Choose sheet", xls.sheet_names, key="sheet_select")
                     df = xls.parse(sheet)
                 else:
                     df = pd.read_csv(up)
@@ -148,33 +155,34 @@ if page == "Scatter Zone Plotter":
 
         with st.expander("🔢 Variables", expanded=True):
             cols = df.columns.tolist()
-            x_col = st.selectbox("X Column", cols)
-            y_col = st.selectbox("Y Column", cols)
-            xlabel = st.text_input("X Label", x_col)
-            ylabel = st.text_input("Y Label", y_col)
-            include_labels = st.checkbox("Include labels")
-            label_col = st.selectbox("Label column", cols, disabled=not include_labels)
+            x_col = st.selectbox("X Column", cols, key="xcol_select")
+            y_col = st.selectbox("Y Column", cols, key="ycol_select")
+            xlabel = st.text_input("X Label", x_col, key="xlabel_input")
+            ylabel = st.text_input("Y Label", y_col, key="ylabel_input")
+            include_labels = st.checkbox("Include labels", key="labels_cb")
+            label_col = st.selectbox("Label column", cols,
+                                     disabled=not include_labels, key="labelcol_select")
 
         with st.expander("⚙️ Options", expanded=True):
-            scale_mode = st.radio("Scale values", ["None", "Lakhs", "Crores"], index=0)
-            line_mode_x = st.radio("Vertical (X) line", ["Mean", "Median", "Manual"], index=1)
-            manual_x = st.number_input("Manual X", value=0.0)
-            line_mode_y = st.radio("Horizontal (Y) line", ["Mean", "Median", "Manual"], index=1)
-            manual_y = st.number_input("Manual Y", value=0.0)
-            title = st.text_input("Title", "Scatter Plot with Custom Zones")
+            scale_mode = st.radio("Scale values", ["None", "Lakhs", "Crores"], index=0, key="scale_radio")
+            line_mode_x = st.radio("Vertical (X) line", ["Mean", "Median", "Manual"], index=1, key="xline_radio")
+            manual_x = st.number_input("Manual X", value=0.0, key="manual_x")
+            line_mode_y = st.radio("Horizontal (Y) line", ["Mean", "Median", "Manual"], index=1, key="yline_radio")
+            manual_y = st.number_input("Manual Y", value=0.0, key="manual_y")
+            title = st.text_input("Title", "Scatter Plot with Custom Zones", key="title_input")
 
         with st.expander("🎨 Colors", expanded=False):
             c1, c2 = st.columns(2)
             with c1:
-                scatter_c = st.color_picker("Scatter", DEFAULT_COLORS["scatter"])
-                line_x_c = st.color_picker("Line X", DEFAULT_COLORS["line_x"])
-                zone1_c = st.color_picker("Zone I", DEFAULT_COLORS["zone1"])
-                zone3_c = st.color_picker("Zone III", DEFAULT_COLORS["zone3"])
+                scatter_c = st.color_picker("Scatter", DEFAULT_COLORS["scatter"], key="scatter_c")
+                line_x_c = st.color_picker("Line X", DEFAULT_COLORS["line_x"], key="line_x_c")
+                zone1_c = st.color_picker("Zone I", DEFAULT_COLORS["zone1"], key="zone1_c")
+                zone3_c = st.color_picker("Zone III", DEFAULT_COLORS["zone3"], key="zone3_c")
             with c2:
-                line_y_c = st.color_picker("Line Y", DEFAULT_COLORS["line_y"])
-                labels_c = st.color_picker("Labels", DEFAULT_COLORS["labels"])
-                zone2_c = st.color_picker("Zone II", DEFAULT_COLORS["zone2"])
-                zone4_c = st.color_picker("Zone IV", DEFAULT_COLORS["zone4"])
+                line_y_c = st.color_picker("Line Y", DEFAULT_COLORS["line_y"], key="line_y_c")
+                labels_c = st.color_picker("Labels", DEFAULT_COLORS["labels"], key="labels_c")
+                zone2_c = st.color_picker("Zone II", DEFAULT_COLORS["zone2"], key="zone2_c")
+                zone4_c = st.color_picker("Zone IV", DEFAULT_COLORS["zone4"], key="zone4_c")
             colors = {"scatter": scatter_c, "line_x": line_x_c, "line_y": line_y_c,
                       "zone1": zone1_c, "zone2": zone2_c, "zone3": zone3_c, "zone4": zone4_c, "labels": labels_c}
 
@@ -183,7 +191,8 @@ if page == "Scatter Zone Plotter":
                             scale_mode=scale_mode, line_mode_x=line_mode_x.lower(),
                             line_mode_y=line_mode_y.lower(),
                             manual_x=float(manual_x), manual_y=float(manual_y),
-                            include_labels=include_labels, label_column=label_col if include_labels else "",
+                            include_labels=include_labels,
+                            label_column=label_col if include_labels else "",
                             colors=colors, x_col=x_col, y_col=y_col)
             st.download_button("Save settings (.json)", json.dumps(settings, indent=2),
                                file_name="settings.json", mime="application/json")
@@ -199,21 +208,22 @@ if page == "Scatter Zone Plotter":
             st.plotly_chart(fig, use_container_width=True)
 
             csv_bytes = plot_df.to_csv(index=False).encode("utf-8")
-            st.download_button("Download processed CSV", csv_bytes, "processed_with_zones.csv", "text/csv")
+            st.download_button("Download processed CSV", csv_bytes,
+                               "processed_with_zones.csv", "text/csv")
 
             # --- Export options ---
             st.markdown("### Export Options")
-            fmt = st.selectbox("File format", ["png", "jpg", "pdf", "eps", "svg"], index=0)
-            
+            fmt = st.selectbox("File format", ["png", "jpg", "pdf", "eps", "svg"], index=0, key="fmt_select")
+
             if fmt in ["png", "jpg"]:
                 dpi = st.number_input("DPI (resolution)", value=300, step=50,
                                       min_value=72, max_value=600, key="dpi_input")
                 width_in = st.number_input("Width (inches)", value=7.0, step=0.5, key="width_input")
                 height_in = st.number_input("Height (inches)", value=6.0, step=0.5, key="height_input")
-            
+
                 width_px = int(width_in * dpi)
                 height_px = int(height_in * dpi)
-            
+
                 img_bytes = pio.to_image(
                     fig,
                     format=fmt,
@@ -224,7 +234,7 @@ if page == "Scatter Zone Plotter":
             else:
                 st.info("DPI/dimensions not applicable for vector formats (PDF, EPS, SVG).")
                 img_bytes = pio.to_image(fig, format=fmt)
-            
+
             st.download_button(
                 f"Download plot as .{fmt}",
                 data=img_bytes,
@@ -236,7 +246,7 @@ if page == "Scatter Zone Plotter":
                       else "image/jpeg"),
                 key="download_button"
             )
-            
+
             # Optional: interactive HTML download
             html_bytes = fig.to_html(full_html=False).encode("utf-8")
             st.download_button(
@@ -246,7 +256,7 @@ if page == "Scatter Zone Plotter":
                 mime="text/html",
                 key="html_download"
             )
-            
+
         except Exception as e:
             st.error(str(e))
 
